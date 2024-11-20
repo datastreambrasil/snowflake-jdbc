@@ -490,8 +490,6 @@ class SnowflakePreparedStatementV1 extends SnowflakeStatementV1
   public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
     if (x == null) {
       setNull(parameterIndex, targetSqlType);
-    } else if (targetSqlType == Types.DATE && (x instanceof LocalDate)) {
-      setDate(parameterIndex, Date.valueOf((LocalDate) x));
     } else if (targetSqlType == Types.DATE) {
       setDate(parameterIndex, (Date) x);
     } else if (targetSqlType == Types.TIME) {
