@@ -27,6 +27,10 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -432,6 +436,35 @@ class SnowflakePreparedStatementV1 extends SnowflakeStatementV1
     parameterBindings.put(String.valueOf(parameterIndex), binding);
   }
 
+  private void setLocalDateTimeWithType(int parameterIndex, LocalDateTime x, int snowflakeType)
+          throws SQLException {
+    String value =
+            x == null
+                    ? null
+                    : String.valueOf(x.toEpochSecond(ZoneOffset.UTC));
+    String bindingTypeName;
+    switch (snowflakeType) {
+      case SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_LTZ:
+        bindingTypeName = SnowflakeType.TIMESTAMP_LTZ.name();
+        break;
+      case SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_NTZ:
+        bindingTypeName = SnowflakeType.TIMESTAMP_NTZ.name();
+        break;
+      default:
+        bindingTypeName = connection.getSFBaseSession().getTimestampMappedType().name();
+        break;
+    }
+
+    /*
+      Snowflake binds timestamp in API with precision 9 (nanoseconds), then we need right padding with zeros to fit this requirement.
+      Why 19 ? 10 digits for year,month,day,hour, minute and second + 9 digits for nanosecond precision.
+     */
+    String valuePadding = String.format("%-19s", value).replace(' ','0');
+
+    ParameterBindingDTO binding = new ParameterBindingDTO(bindingTypeName, valuePadding);
+    parameterBindings.put(String.valueOf(parameterIndex), binding);
+  }
+
   @Override
   public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
     throw new SnowflakeLoggedFeatureNotSupportedException(connection.getSFBaseSession());
@@ -457,12 +490,20 @@ class SnowflakePreparedStatementV1 extends SnowflakeStatementV1
   public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
     if (x == null) {
       setNull(parameterIndex, targetSqlType);
+    } else if (targetSqlType == Types.DATE && (x instanceof LocalDate)) {
+      setDate(parameterIndex, Date.valueOf((LocalDate) x));
     } else if (targetSqlType == Types.DATE) {
       setDate(parameterIndex, (Date) x);
     } else if (targetSqlType == Types.TIME) {
       setTime(parameterIndex, (Time) x);
+    } else if (targetSqlType == Types.TIMESTAMP && (x instanceof LocalDateTime)) {
+      setLocalDateTimeWithType(parameterIndex, (LocalDateTime) x, targetSqlType);
     } else if (targetSqlType == Types.TIMESTAMP) {
       setTimestamp(parameterIndex, (Timestamp) x);
+    } else if (
+            (targetSqlType == SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_LTZ || targetSqlType == SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_NTZ)
+            && (x instanceof LocalDateTime)) {
+      setLocalDateTimeWithType(parameterIndex, (LocalDateTime) x, targetSqlType);
     } else if (targetSqlType == SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_LTZ
         || targetSqlType == SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_NTZ) {
       setTimestampWithType(parameterIndex, (Timestamp) x, targetSqlType);
