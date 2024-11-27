@@ -27,6 +27,7 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -438,10 +439,15 @@ class SnowflakePreparedStatementV1 extends SnowflakeStatementV1
 
   private void setLocalDateTimeWithType(int parameterIndex, LocalDateTime x, int snowflakeType)
           throws SQLException {
+
+    /*
+      Snowflake binds timestamp in API with precision 9 (nanoseconds), then we need right padding with zeros to fit this requirement.
+      Why 19 ? 10 digits for year,month,day,hour, minute and second + 9 digits for nanosecond precision.
+     */
     String value =
             x == null
                     ? null
-                    : String.valueOf(x.toEpochSecond(ZoneOffset.UTC));
+                    : x.toEpochSecond(ZoneOffset.UTC) + "000000000";
     String bindingTypeName;
     switch (snowflakeType) {
       case SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_LTZ:
@@ -455,13 +461,7 @@ class SnowflakePreparedStatementV1 extends SnowflakeStatementV1
         break;
     }
 
-    /*
-      Snowflake binds timestamp in API with precision 9 (nanoseconds), then we need right padding with zeros to fit this requirement.
-      Why 19 ? 10 digits for year,month,day,hour, minute and second + 9 digits for nanosecond precision.
-     */
-    String valuePadding = String.format("%-19s", value).replace(' ','0');
-
-    ParameterBindingDTO binding = new ParameterBindingDTO(bindingTypeName, valuePadding);
+    ParameterBindingDTO binding = new ParameterBindingDTO(bindingTypeName, value);
     parameterBindings.put(String.valueOf(parameterIndex), binding);
   }
 
