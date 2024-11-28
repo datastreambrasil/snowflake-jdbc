@@ -447,7 +447,7 @@ class SnowflakePreparedStatementV1 extends SnowflakeStatementV1
     String value =
             x == null
                     ? null
-                    : x.toEpochSecond(ZoneOffset.UTC) + "000000000";
+                    : x.toInstant(ZoneOffset.UTC).toEpochMilli() + "000000";
     String bindingTypeName;
     switch (snowflakeType) {
       case SnowflakeUtil.EXTRA_TYPES_TIMESTAMP_LTZ:
